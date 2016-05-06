@@ -19,12 +19,12 @@ import init
 
 namespace graph 
   structure ctx : Type :=
-    ( pts : Type )
-    ( edg : pts → pts → Type )
+    ( pts : Type.{0} )
+    ( edg : pts → pts → Type.{0} )
 
   structure fam (Γ : ctx) : Type :=
-    ( pts : ctx.pts Γ → Type)
-    ( edg : Π {i j : ctx.pts Γ}, ctx.edg Γ i j → pts i → pts j → Type)
+    ( pts : ctx.pts Γ → Type.{0})
+    ( edg : Π {i j : ctx.pts Γ}, ctx.edg Γ i j → pts i → pts j → Type.{0})
 
   structure tm {Γ : ctx} (A : fam Γ) : Type :=
     ( pts : Π (i : ctx.pts Γ), fam.pts A i)
