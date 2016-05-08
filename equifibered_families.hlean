@@ -2,12 +2,14 @@ import init graphmodel
 
 open equiv graph is_trunc prod prod.ops eq
 
+universe u
+
 namespace equifibered
 
   structure ctx extends graph.ctx 
 
   structure fam (Γ : ctx) : Type :=
-    ( pts : ctx.pts Γ → Type.{0})
+    ( pts : ctx.pts Γ → Type.{u})
     ( edg : Π {i j : ctx.pts Γ}, ctx.edg Γ i j → (pts i ≃ pts j))
 
   structure tm {Γ : ctx} (E : fam Γ) : Type :=
