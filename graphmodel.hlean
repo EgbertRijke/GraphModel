@@ -1,9 +1,22 @@
+/-
+Title: The graph model of type theory.
+Author: Egbert Rijke
+Copyright: Apache 2.0
+Year: 2016
+
+This document is part of the GraphModel project, see
+  
+  https://github.com/EgbertRijke/GraphModel.git
+
+for the licence.
+-/
+
 import types
 
 open sigma sigma.ops eq pi 
 
 -- We fix a universe, because lean makes a mess when we allow it to assign
--- universes freely.
+-- universes freely, and I don't know how to deal with that otherwise.
 universe u
 
 /-
@@ -32,6 +45,7 @@ On the naming convention.
 namespace graph 
 
 ----------------------------------------------------------------------------------------------------
+  --= CONTEXTS =--
 
   namespace ctx
     -- We define the ingredients of a context in the graph model
@@ -49,18 +63,19 @@ namespace graph
   namespace ctx
     -- equality of contexts
     definition eq {Δ Γ : ctx} : 
-      Π (p : ctx.pts Δ = ctx.pts Γ), transport _ p (ctx.edg Δ) = ctx.edg Γ → Δ = Γ :=
+      Π (p : ctx.pts Δ = ctx.pts Γ), (ctx.edg Δ) =[p] ctx.edg Γ → Δ = Γ :=
     begin
       induction Δ with Δ.pts Δ.edg,
       induction Γ with Γ.pts Γ.edg,
       esimp,
       intro p q,
-      induction p; induction q,
+      induction q,
       reflexivity
     end
   end ctx
 
 ----------------------------------------------------------------------------------------------------
+  --= FAMILIES =--
 
   namespace fam
     variable (Γ : ctx)
@@ -81,18 +96,19 @@ namespace graph
   namespace fam
     -- equality of families
     definition eq {Γ : ctx} (A B : fam Γ) :
-      Π ( p : fam.pts A = fam.pts B), p ▸ fam.edg A = fam.edg B → A = B :=
+      Π ( p : fam.pts A = fam.pts B), fam.edg A =[p] fam.edg B → A = B :=
     begin
       induction A with A.pts A.edg,
       induction B with B.pts B.edg,
       esimp,
       intro p q,
-      induction p; induction q,
+      induction q,
       reflexivity
     end
   end fam
 
 ----------------------------------------------------------------------------------------------------
+  --= TERMS =--
 
   namespace tm
     -- We define the basic ingredients of terms in the graph model
@@ -127,7 +143,8 @@ namespace graph
     end
   end tm
 
-
+----------------------------------------------------------------------------------------------------
+  --= CONTEXT EXTENSION =--
 
   namespace ext
     -- We define the basic ingredients of context extension
@@ -148,10 +165,7 @@ namespace graph
     ctx.mk (ext.pts Γ A) (ext.edg Γ A)
 
 ----------------------------------------------------------------------------------------------------
-
-
-
-----------------------------------------------------------------------------------------------------
+  --= WEAKENING =--
 
   namespace wk
     -- This namespace contains the ingredients of weakening.
@@ -169,7 +183,8 @@ namespace graph
     fam.mk _ (@wk.edg _ A B)
 
 ----------------------------------------------------------------------------------------------------
-  
+  --= SUBSTITUTION =--
+
   namespace subst
     -- This namespace contains the ingredients for substitution
 
@@ -186,6 +201,8 @@ namespace graph
     fam.mk _ (@subst.edg _ _ t P)
 
 ----------------------------------------------------------------------------------------------------
+  --= DEPENDENT FUNCTION TYPES =--
+
   /-
   In the following we implement dependent function types in the graph model. 
   - We introduce `prd A P` for any family `P` over `ext Γ A`
@@ -208,11 +225,11 @@ namespace graph
       λ i j e f g, Π {x : fam.pts A i} {y : fam.pts A j} (s : fam.edg A e x y), fam.edg P (ext.edg.mk e s) (f x) (g y)
   end prd
 
-  -- introduce dependent products
+  -- introduce dependent function types
   definition prd {Γ : ctx} (A : fam Γ) (P : fam (ext Γ A)) : fam Γ :=
     fam.mk _ (@prd.edg _ A P)
 
-  -- lambda-abstraction for dependent products
+  -- lambda-abstraction for dependent function types
   definition abstr [unfold 4] {Γ : ctx} {A : fam Γ} {P : fam (ext Γ A)} : tm P → tm (prd A P) :=
   begin
     intro f,
@@ -223,6 +240,7 @@ namespace graph
     exact tm.edg f (ext.edg.mk e s)
   end
 
+  -- evaluation
   definition evl [unfold 4] {Γ : ctx} {A : fam Γ} {P : fam (ext Γ A)} : tm (prd A P) → tm P :=
   begin
     intro g,
@@ -282,11 +300,7 @@ namespace graph
   end 
     
 ----------------------------------------------------------------------------------------------------
-  --= DERIVED NOTIONS =--
-
-  /- 
-    We develop some derived notions of the graph model, including graph morphisms. 
-  -/
+  --= GRAPH HOMOMORPHISMS =--
 
   /-
     Introduction of graph homomorphisms. A graph homomorphism from Δ to Γ is the same thing as
