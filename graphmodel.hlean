@@ -13,7 +13,7 @@ for the licence.
 
 import types move_to_main
 
-open sigma sigma.ops eq pi 
+open sigma sigma.ops eq pi is_equiv
 
 -- We fix a universe, because lean makes a mess when we allow it to assign
 -- universes freely, and I don't know how to deal with that otherwise.
@@ -279,12 +279,12 @@ namespace graph
     exact tm.edg g e x y s
   end
 
-  namespace is_equiv_abstr
+  namespace beta
     variables {Γ : ctx} {A : fam Γ} (P : fam (ext Γ A))
 
     include P
 
-    definition beta.pts [unfold 4] (f : tm P) : tm.pts (evl (abstr f)) = tm.pts f :=
+    definition pts [unfold 4] (f : tm P) : tm.pts (evl (abstr f)) = tm.pts f :=
     begin
       induction f with f.pts f.edg, esimp,
       apply eq_of_homotopy,
@@ -292,34 +292,7 @@ namespace graph
       reflexivity
     end
 
-/-
-    check tm.ty_edg P
-    check eq_of_homotopy
-    open funext
-    definition beta.edg_aux 
-      (f_pts g_pts : tm.ty_pts P) (p : f_pts = g_pts)
-      (f_edg : tm.ty_edg P f_pts) (g_edg : tm.ty_edg P g_pts) 
-      ⦃i : ctx.pts Γ⦄ ⦃x : fam.pts A i⦄ ⦃j : ctx.pts Γ⦄
-      ⦃y : fam.pts A j⦄ (e : ctx.edg Γ i j) (s : fam.edg A e x y) :
-      pathover2 
-        (fam.edg P (ext.edg.mk e s)) 
-        (apd10 p (ext.pts.mk i x)) 
-        (apd10 p (ext.pts.mk j y))
-        (f_edg (ext.edg.mk e s))
-        (g_edg (ext.edg.mk e s))
-        →
-      f_edg (ext.edg.mk e s) 
-        =[p] 
-      g_edg (ext.edg.mk e s) :=
-      begin
-        intro q,
-        induction q,
-      end
--/
-
-set_option pp.notation false
-
-    definition beta.edg (f : tm P) : tm.edg (evl (abstr f)) =[beta.pts P f] tm.edg f :=
+    definition edg (f : tm P) : tm.edg (evl (abstr f)) =[beta.pts P f] tm.edg f :=
     begin
       induction f with f.pts f.edg, 
       apply pi_pathover_constant,
@@ -330,50 +303,60 @@ set_option pp.notation false
       intro t, induction t with e s,
       esimp at e, esimp at s, esimp, 
       apply pathover_of_tr_eq,
-      krewrite tr_eq_of_homotopy,
+      apply tr_eq_of_homotopy
     end
+  end beta
 
-    definition beta (f : tm P) : evl (abstr f) = f :=
+  definition beta {Γ : ctx} {A : fam Γ} {P : fam (ext Γ A)} (f : tm P) : evl (abstr f) = f :=
       tm.eq (beta.pts P f) (beta.edg P f)
 
-    definition eta.pts (g : tm (prd A P)) : tm.pts (abstr (evl g)) = tm.pts g :=
+  namespace eta
+    variables {Γ : ctx} {A : fam Γ} (P : fam (ext Γ A))
+
+    include P
+
+    definition pts [unfold 4] (g : tm (prd A P)) : tm.pts (abstr (evl g)) = tm.pts g :=
+      eq_of_homotopy2 (λ i x, refl (tm.pts g i x))
+
+    local attribute homotopy2.rec_on [recursor] 
+
+    definition tr_eq_of_homotopy2 (g : tm (prd A P)) (g0' : Π (i : ctx.pts Γ) (x : fam.pts A i), fam.pts P (ext.pts.mk i x)) 
+      (H : tm.pts g ~2 g0')
+      {i j : ctx.pts Γ} (e : ctx.edg Γ i j) {x : fam.pts A i} {y : fam.pts A j} (s : fam.edg A e x y) :
+      ((eq_of_homotopy2 H) ▸ (tm.edg g)) i j e x y s = (H i x) ▸ ( (H j y) ▸ (tm.edg g e x y s)) :=
     begin
-      apply eq_of_homotopy,
-      intro i,
-      apply eq_of_homotopy,
-      intro x,
-      reflexivity
+      induction H with q,
+      induction q,
+      krewrite eq_of_homotopy2_id
     end
 
---    set_option unifier.max_steps 1000000000
-
-    check @pi_transport
-
-    definition eta.edg (g : tm (prd A P)) : tm.edg (abstr (evl g)) =[eta.pts P g] tm.edg g :=
+    definition edg (g : tm (prd A P)) : tm.edg (abstr (evl g)) =[eta.pts P g] tm.edg g :=
     begin 
       apply pathover_of_tr_eq,
-      apply eq_of_homotopy,
-      intro i,
-      apply eq_of_homotopy,
-      intro j,
+      apply eq_of_homotopy2,
+      intros i j,
       apply eq_of_homotopy,
       intro e,
+      apply eq_of_homotopy2,
+      intros x y,
       apply eq_of_homotopy,
-      intro x,
-      apply eq_of_homotopy,
-      intro y,
-      apply eq_of_homotopy,
-      intro s, repeat exact sorry
+      intro s, 
+      esimp,
+      krewrite tr_eq_of_homotopy2,
     end
 
-  end is_equiv_abstr
+  end eta
 
-  check is_equiv_abstr.beta
-  definition is_equiv_abstr {Γ : ctx} {A : fam Γ} (P : fam (ext Γ A)) : is_equiv (@abstr _ _ P) :=
+  definition eta {Γ : ctx} {A : fam Γ} {P : fam (ext Γ A)} (g : tm (prd A P)) : abstr (evl g) = g :=
+    tm.eq _ (eta.edg P g)
+
+  definition is_equiv_abstr {Γ : ctx} {A : fam Γ} (P : fam (ext Γ A)) : is_equiv (@abstr Γ A P) :=
   begin
-    fapply is_equiv.adjointify;
-    repeat (exact sorry),
-  end 
+    fapply adjointify,
+    exact evl,
+    exact eta,
+    exact beta,
+  end
     
 ----------------------------------------------------------------------------------------------------
   --= GRAPH HOMOMORPHISMS =--
