@@ -1,10 +1,8 @@
-import init types graphmodel
+import types graphmodel
 
-open is_trunc eq sigma sigma.ops equiv is_equiv function sum
+open is_trunc eq sigma sigma.ops equiv is_equiv function sum graph
 
 namespace diagram
-  
-  universe u
 
   structure ctx extends graph.ctx
 
@@ -21,45 +19,50 @@ end diagram
   definition diagram_ctx_from_graph_ctx : graph.ctx → diagram.ctx :=
      λ Γ, diagram.ctx.mk _ (graph.ctx.edg Γ)
 
---AZ:class?
-  structure is_diagram {Γ : graph.ctx} (A : graph.fam Γ) : Type :=
+  structure is_diagram [class] {Γ : graph.ctx} (A : graph.fam Γ) : Type :=
     ( witness :  Π {i j : graph.ctx.pts Γ} (e : graph.ctx.edg Γ i j) (x : graph.fam.pts A i), 
                    is_contr (Σ (y : graph.fam.pts A j), graph.fam.edg A e x y))
+
+  attribute is_diagram.witness [instance]
 
   definition diagram_fam_from_graph_fam_from_is_diagram {Γ : graph.ctx} : 
     Π (A : graph.fam Γ), is_diagram A → diagram.fam (diagram_ctx_from_graph_ctx Γ) := 
     begin
       intros A H,
       fapply diagram.fam.mk,
-      unfold diagram_ctx_from_graph_ctx,
-      intro i,
-      exact (@graph.fam.pts Γ A i),
-      intros i j,
-      unfold diagram_ctx_from_graph_ctx,
-      intros e x,
+      exact (@graph.fam.pts Γ A),
+      intros i j e x,
       refine sigma.pr1 (@is_trunc.center (sigma (graph.fam.edg A e x)) _),
-      exact is_diagram.witness H e x
+      exact is_diagram.witness e x
     end
 
-  definition diagram_tm_from_graph_tm_from_is_diagram {Γ : graph.ctx} (A : graph.fam Γ) (H : is_diagram A) :
+  namespace diagram_tm_from_graph_tm_from_is_diagram
+    variables {Γ : graph.ctx} {A : graph.fam Γ} [is_diagram A] (t : graph.tm A)
+
+    definition pts : Π (i : ctx.pts Γ), fam.pts A i := 
+      graph.tm.pts t
+
+    definition eq : Π {i j : ctx.pts Γ} (e : ctx.edg Γ i j),
+      (center (Σ (a : fam.pts A j), fam.edg A e (tm.pts t i) a)).1 = tm.pts t j :=
+    begin
+      intros i j e,
+      have p : center _ = dpair (tm.pts t j) (tm.edg t e),
+      from !center_eq,
+      exact ap pr1 p,
+    end 
+
+  end diagram_tm_from_graph_tm_from_is_diagram
+
+  definition diagram_tm_from_graph_tm_from_is_diagram 
+    {Γ : graph.ctx} (A : graph.fam Γ) [H : is_diagram A] :
     graph.tm A → diagram.tm (diagram_fam_from_graph_fam_from_is_diagram A H) :=
     begin
       intro t,
-      unfold diagram_fam_from_graph_fam_from_is_diagram,
-      unfold diagram_ctx_from_graph_ctx,
-      fapply diagram.tm.mk; esimp,
-        exact graph.tm.pts t,
-      esimp,
-      intros i j e,
-      assert K : ⟨graph.tm.pts t j, e⟩.1 = graph.tm.pts t j,
-      reflexivity,
-      refine _ ⬝ K,
-      refine @sigma.eq_pr1 _ _ _ _ _,
-      
- --     fapply @sigma.eq_pr1 _ _ (@center (sigma (graph.fam.edg A e (graph.tm.pts t i) _ ))) (dpair (graph.tm.pts t j) (graph.tm.edg t e)) _,
---      refine eq.ap01 (@sigma.pr1 (graph.fam.pts A j) (graph.fam.edg A e (graph.tm.pts t i))) _,
- --     fapply diagram.tm.mk,
- --     intro i,
+      fapply diagram.tm.mk,
+      intro i,
+      exact diagram_tm_from_graph_tm_from_is_diagram.pts t i,
+      intro i j e,
+      exact diagram_tm_from_graph_tm_from_is_diagram.eq t e,
     end
   
 ----------------------------------------------------------------------------------------------------

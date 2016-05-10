@@ -11,7 +11,7 @@ This document is part of the GraphModel project, see
 for the licence.
 -/
 
-import types
+import types move_to_main
 
 open sigma sigma.ops eq pi 
 
@@ -175,12 +175,15 @@ namespace graph
     definition pts : ctx.pts (ext Γ A) → Type :=
       λ p, fam.pts B (ext.pts.in_ctx p)
 
-    definition edg : Π {p q : ctx.pts (ext Γ A)}, ctx.edg (ext Γ A) p q → pts A B p → pts A B q → Type :=
+    definition edg : Π ⦃p q : ctx.pts (ext Γ A)⦄, 
+      ctx.edg (ext Γ A) p q → pts A B p → pts A B q → Type :=
       λ p q e, fam.edg B (ext.edg.in_ctx e)
   end wk
 
   definition wk {Γ : ctx} (A B : fam Γ) : fam (ext Γ A) :=
-    fam.mk _ (@wk.edg _ A B)
+    fam.mk (wk.pts A B) (wk.edg A B)
+
+  notation `⟨` A `⟩` B := wk A B
 
 ----------------------------------------------------------------------------------------------------
   --= SUBSTITUTION =--
@@ -193,12 +196,28 @@ namespace graph
     definition pts (t : tm A) (P : fam (ext Γ A)) : ctx.pts Γ → Type.{u} :=
       λ i, fam.pts P (ext.pts.mk _ (tm.pts t i))
 
-    definition edg (t : tm A) (P : fam (ext Γ A)) : Π {i j : ctx.pts Γ}, ctx.edg Γ i j → pts t P i → pts t P j → Type :=
+    definition edg (t : tm A) (P : fam (ext Γ A)) : Π ⦃i j : ctx.pts Γ⦄, ctx.edg Γ i j → pts t P i → pts t P j → Type :=
       λ i j e, fam.edg P (ext.edg.mk _ (tm.edg t e))
   end subst
 
   definition subst {Γ : ctx} {A : fam Γ} (t : tm A) (P : fam (ext Γ A)) : fam Γ :=
-    fam.mk _ (@subst.edg _ _ t P)
+    fam.mk _ (subst.edg t P)
+
+  notation P `[` t `]` := subst t P
+
+----------------------------------------------------------------------------------------------------
+  --= IDENTITY TERMS =--
+
+  definition idtm {Γ : ctx} (A : fam Γ) : tm (⟨A⟩ A) :=
+    begin
+      fapply tm.mk,
+      intro p,
+      exact ext.pts.in_fam p,
+      intro p q s,
+      induction p with i x,
+      induction q with j y,
+      exact ext.edg.in_fam s
+    end
 
 ----------------------------------------------------------------------------------------------------
   --= DEPENDENT FUNCTION TYPES =--
@@ -207,8 +226,13 @@ namespace graph
   In the following we implement dependent function types in the graph model. 
   - We introduce `prd A P` for any family `P` over `ext Γ A`
   - We define lambda-abstract and evaluation
-  - We show that lambda-abstraction and evaluation are mutual inverses.
-  With these three ingredients we have implemented dependent product types satisfying the eta-rule.
+  - We show that lambda-abstraction and evaluation are mutual inverses, and hence that the types
+    tm P and tm (prd A P) are equivalent. The fact that 
+      evl (abstr f) = f 
+    for any f : tm P, is an implementation of the beta-conversion rule. The fact that
+      abstr (evl g) = g 
+    for any g : prd A P is an implementation of the eta-conversion rule. Of course, these results 
+    rely on function extensionality in the ambient type theory.
   -/
 
   namespace prd
@@ -268,28 +292,80 @@ namespace graph
       reflexivity
     end
 
-    print eq_of_homotopy
+/-
+    check tm.ty_edg P
+    check eq_of_homotopy
+    open funext
+    definition beta.edg_aux 
+      (f_pts g_pts : tm.ty_pts P) (p : f_pts = g_pts)
+      (f_edg : tm.ty_edg P f_pts) (g_edg : tm.ty_edg P g_pts) 
+      ⦃i : ctx.pts Γ⦄ ⦃x : fam.pts A i⦄ ⦃j : ctx.pts Γ⦄
+      ⦃y : fam.pts A j⦄ (e : ctx.edg Γ i j) (s : fam.edg A e x y) :
+      pathover2 
+        (fam.edg P (ext.edg.mk e s)) 
+        (apd10 p (ext.pts.mk i x)) 
+        (apd10 p (ext.pts.mk j y))
+        (f_edg (ext.edg.mk e s))
+        (g_edg (ext.edg.mk e s))
+        →
+      f_edg (ext.edg.mk e s) 
+        =[p] 
+      g_edg (ext.edg.mk e s) :=
+      begin
+        intro q,
+        induction q,
+      end
+-/
 
-    definition beta (f : tm P) : evl (abstr f) = f :=
+set_option pp.notation false
+
+    definition beta.edg (f : tm P) : tm.edg (evl (abstr f)) =[beta.pts P f] tm.edg f :=
     begin
-      fapply tm.eq,
-      exact beta.pts P f,
+      induction f with f.pts f.edg, 
       apply pi_pathover_constant,
       intro p, induction p with i x,
-      induction f with f.pts f.edg,
-      esimp,
       apply pi_pathover_constant,
       intro q, induction q with j y,
-      esimp,
       apply pi_pathover_constant,
-      intro s; induction s with e s,
-      esimp at e,
-      esimp at s,
-      esimp,
---      assert K : eq_of_homotopy (ext.pts.rec (λ (i : ctx.pts Γ) (x : fam.pts A i), refl (f.pts (ext.pts.mk i x)))) = idpath (λ (i x), f.pts (ext.pts.mk i x)),
---      from eq_of_homotopy (λ (i : ctx.pts Γ) (x : fam.pts A i), refl (refl (f.pts (ext.pts.mk i x)))),
-      exact sorry
-    end 
+      intro t, induction t with e s,
+      esimp at e, esimp at s, esimp, 
+      apply pathover_of_tr_eq,
+      krewrite tr_eq_of_homotopy,
+    end
+
+    definition beta (f : tm P) : evl (abstr f) = f :=
+      tm.eq (beta.pts P f) (beta.edg P f)
+
+    definition eta.pts (g : tm (prd A P)) : tm.pts (abstr (evl g)) = tm.pts g :=
+    begin
+      apply eq_of_homotopy,
+      intro i,
+      apply eq_of_homotopy,
+      intro x,
+      reflexivity
+    end
+
+--    set_option unifier.max_steps 1000000000
+
+    check @pi_transport
+
+    definition eta.edg (g : tm (prd A P)) : tm.edg (abstr (evl g)) =[eta.pts P g] tm.edg g :=
+    begin 
+      apply pathover_of_tr_eq,
+      apply eq_of_homotopy,
+      intro i,
+      apply eq_of_homotopy,
+      intro j,
+      apply eq_of_homotopy,
+      intro e,
+      apply eq_of_homotopy,
+      intro x,
+      apply eq_of_homotopy,
+      intro y,
+      apply eq_of_homotopy,
+      intro s, repeat exact sorry
+    end
+
   end is_equiv_abstr
 
   check is_equiv_abstr.beta
@@ -333,6 +409,94 @@ namespace graph
     λ A, slice.mk _ (proj₁ Γ A)
 
 ----------------------------------------------------------------------------------------------------
+  --= UNIT GRAPH =--
+
+  namespace unit
+    inductive pts : Type.{u} := 
+      | pt0
+
+    inductive edg : pts → pts → Type.{u} := 
+      | pt1 : edg pts.pt0 pts.pt0
+  end unit
+
+  definition unit : ctx :=
+    ctx.mk unit.pts unit.edg
+
+--  definition star : tm unit :=
+--   tm.mk unit.pts.pt0 unit.edg.pt1
+
+  namespace unit
+
+--    definition ind (P : fam unit) : tm P 
+  end unit
+
+----------------------------------------------------------------------------------------------------
+  --= DEPENDENT PAIR TYPES =--
+
+  namespace ism
+    variables {Γ : ctx} (A : fam Γ) (P : fam (ext Γ A))
+
+    -- If the `inductive` environment would be slightly more permissive, I would have
+    -- liked to write `fam.ty_pts Γ` rather than `ctx.pts Γ → Type`. The reason is that,
+    -- according to the abstraction principle, I should not be required to write out 
+    -- that type explicitly over and over again; once should suffice.
+    inductive pts : ctx.pts Γ → Type :=
+      | pair : Π ⦃i : ctx.pts Γ⦄ (x : fam.pts A i), fam.pts P (ext.pts.mk i x) → pts i
+
+    -- Similarly, here I would have liked to write `fam.ty_edg Γ (pts A P)`. Note that
+    -- currently a lot more work goes into writing down the correct expression, with no
+    -- verification process behind it to verify that the expression I wrote matches my
+    -- intention.
+    inductive edg : Π ⦃i j : ctx.pts Γ⦄, (ctx.edg Γ i j) →  (pts A P i) → (pts A P j) → Type := 
+      | pair : Π ⦃i j : ctx.pts Γ⦄ (e : ctx.edg Γ i j) 
+                 (x : fam.pts A i) (u : fam.pts P (ext.pts.mk i x))
+                 (y : fam.pts A j) (v : fam.pts P (ext.pts.mk j y)),
+                 edg e (pts.pair x u) (pts.pair y v)
+  end ism
+
+  definition ism {Γ : ctx} (A : fam Γ) (P : fam (ext Γ A)) : fam Γ :=
+    fam.mk _ (ism.edg A P)
+
+  definition ipair {Γ : ctx} (A : fam Γ) (P : fam (ext Γ A)) : tm (⟨P⟩(⟨A⟩ (ism A P))) :=
+    begin
+      fapply tm.mk,
+      intros p,
+      induction p with p u,
+      induction p with i x,
+      exact ism.pts.pair x u,
+      esimp,
+      intros p q s,
+      induction p with p u,
+      induction p with i x,
+      induction q with q v,
+      induction q with j y,
+      induction s with s t,
+      induction s with e s,
+      esimp,
+      fapply ism.edg.pair,
+    end
+
+--tm.mk _ (ism.edg.pair A P)
+ 
+
+  namespace dsm
+
+    variables {Γ : ctx} (A : fam Γ) (P : fam (ext Γ A))
+
+    include A P
+
+    definition pts : fam.ty_pts Γ :=
+      λ i, Σ (x : fam.pts A i), fam.pts P (ext.pts.mk i x)
+
+    definition edg : fam.ty_edg Γ (pts A P) :=
+      λ i j e p q, Σ (s : fam.edg A e (pr1 p) (pr1 q)), fam.edg P (ext.edg.mk e s) (pr2 p) (pr2 q)
+  end dsm
+----------------------------------------------------------------------------------------------------
+  --= IDENTITY TYPES =--
+
+----------------------------------------------------------------------------------------------------
+  --= W-TYPES =--
+
 
 end graph
 
