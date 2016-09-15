@@ -38,7 +38,7 @@ namespace model
     --      |                  |
     --      |                  |
     --      V                  V
-    --    base.fam AA -----> bsae.fam BB
+    --    base.fam AA -----> base.fam BB
     --      |                  |
     --      |                  |
     --      V                  V
