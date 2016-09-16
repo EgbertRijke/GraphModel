@@ -4,11 +4,18 @@ open eq funext
 
 universe variable u
 
-    -- We attempt to formalize a weak notion of model of type theory using only homotopy-invariant tools. We have two examples in mind: 
+    -- We attempt to formalize a weak notion of model of type theory using only homotopy-invariant 
+    -- tools. We have two examples in mind: 
     -- - it should be possible to obtain such a model from a univalent universe,
     -- - given a univalent universe, there should be a model or (reflexive) graphs.
     --
-    -- It turns out that what we formalize here is a theory of structures and dependent structures, containing all the ways in which one could manipulate these. From another point of view, this is a theory of contexts and dependent contexts. It is a direct generalization of Cartmell's contextual categories, which were reformulated as C-systems and B-systems by Voevodsky. The weak notion of model we formalize here is a homotopified notion of E-system, which was developed by the author. B-systems form a subcategory of E-systems, for which the inclusion functor is full and faithful.
+    -- It turns out that what we formalize here is a theory of structures and dependent structures, 
+    -- containing all the ways in which one could manipulate these. From another point of view, this
+    -- is a theory of contexts and dependent contexts. It is a direct generalization of Cartmell's 
+    -- contextual categories, which were reformulated as C-systems and B-systems by Voevodsky. The 
+    -- weak notion of model we formalize here is a homotopified notion of E-system, which was 
+    -- developed by the author. B-systems form a subcategory of E-systems, for which the inclusion 
+    -- functor is full and faithful.
 
 namespace model
     
@@ -20,6 +27,7 @@ namespace model
     --
     --     base.tm ---->> base.fam ---->> base.ctx.
 
+
   structure base : Type :=
       -- contexts
     ( ctx : Type.{u})
@@ -27,6 +35,18 @@ namespace model
     ( fam : ctx → Type.{u})
       -- terms
     ( tm  : Π ⦃Γ : ctx⦄, fam Γ → Type.{u})
+
+  -- One operation we can always define on bases, is that if AA is an indexed base, then we can take
+  -- the total space at the level of contexts to obtain a new base.
+
+  definition total_base (I : Type.{u}) (AA : I → base.{u}) : base.{u} :=
+    base.mk
+        -- contexts
+      ( Σ (i : I), base.ctx (AA i))
+        -- families
+      ( sigma.rec (λ i, base.fam (AA i)))
+        -- terms
+      ( sigma.rec (λ i, base.tm (AA i)))
 
     -- A homomorphism of bases, is simply a three-fold map sending
     -- - the contexts to the contexts,
@@ -42,24 +62,67 @@ namespace model
     --      |                  |
     --      |                  |
     --      V                  V
-    --    base.ctx AA -----> base.ctx BB
+    --    base.ctx AA -----> base.ctx BB  
 
-  structure hom_base (AA BB : base) : Type :=
+  namespace base
+    -- We add the notion of homomorphism of bases to the namespace base
+
+  structure hom (AA BB : base) : Type :=
       -- action on contexts
     ( action_ctx : base.ctx AA → base.ctx BB)
       -- action on dependent structures
     ( action_fam : Π ⦃Γ : base.ctx AA⦄, base.fam AA Γ → base.fam BB (action_ctx Γ))
       -- action on terms
     ( action_tm  : Π ⦃Γ : base.ctx AA⦄ ⦃A : base.fam AA Γ⦄, base.tm AA A → base.tm BB (action_fam A))
+  end base
+
+    -- We start by adding context extension and an empty context into the mix.
+
+  structure e0base extends base :=
+      -- context extension
+    ( ctxext : Π (Γ : ctx), fam Γ → ctx)
+      -- empty contex
+    ( empctx : ctx)
+      -- context extension by the empty context is an equivalence
+    ( is_equiv_ctxext_empctx : is_equiv (ctxext empctx))
+
+  namespace e0base
+    -- A homomorphism of bases with context extension is simply a homomorphism of bases which preserves context extension. 
+
+  structure hom (AA BB : e0base) extends base.hom AA BB :=
+    ( pres_ctxext : Π (Γ : ctx AA) (A : fam AA Γ),
+        action_ctx (ctxext AA Γ A) = ctxext BB (action_ctx Γ) (action_fam A))
+
+    -- Given a context Γ in a base with context extension, we can find the base for a new model.
+
+  definition slice {AA : e0base} (Γ : e0base.ctx AA) : base :=
+    base.mk 
+      ( fam AA Γ) 
+      ( λ A, fam AA (ctxext AA Γ A)) 
+      ( λ A P, tm AA P)
+
+    -- Furthermore, we can extend context extension to a base homomorphism.
+
+  definition ctxext_hom (AA : e0base) : base.hom (total_base _ (@e0base.slice AA)) AA :=
+    base.hom.mk
+      (sigma.rec (ctxext AA))
+      (sigma.rec (λ Γ A, id))
+      (sigma.rec (λ Γ A P, id)) 
+
+  end e0base
 
     -- We now extend the notion of base to the notion of extension base, by adding
     -- - context extension
     -- - family extension
-    -- - an empty structure, which is a right unit for context extension and a unit (both left and right) for family extension,
+    -- - an empty structure, which is a right unit for context extension and a unit (both left and 
+    --   right) for family extension,
     -- - associativity for context extension and family extension
     -- We do not (yet) require further coherence laws for associativity.
     --
-    -- Note that the equations are formulated as equations between dependent functions, as opposed to families of equations. This makes it slightly easier, in my experience, to formulate the requirement that these equations should be preserved, in the formalization of later aspects of models of type theory.
+    -- Note that the equations are formulated as equations between dependent functions, as opposed 
+    -- to families of equations. This makes it slightly easier, in my experience, to formulate the 
+    -- requirement that these equations should be preserved, in the formalization of later aspects 
+    -- of models of type theory.
 
   structure ebase extends base :=
       -- context extension
@@ -91,7 +154,11 @@ namespace model
   open ebase
     -- We open the name space ebase, so that we can freely use its ingredients.
 
-    -- A pre-homomorphism of ebases is a homomorphism which preserves the operations of context extension, family extension and the empty structure. However, a pre-homomorphism of ebases is not yet required to preserve the further equations in the structure of an ebase. This requires a more elaborate formalization, in which it is useful to have the auxilary notion of pre-homomorphism of ebases available.
+    -- A pre-homomorphism of ebases is a homomorphism which preserves the operations of context 
+    -- extension, family extension and the empty structure. However, a pre-homomorphism of ebases is
+    -- not yet required to preserve the further equations in the structure of an ebase. This 
+    -- requires a more elaborate formalization, in which it is useful to have the auxilary notion of
+    -- pre-homomorphism of ebases available.
 
   structure prehom_ebase (AA BB : ebase) extends hom_base AA BB :=
       -- preservation of context extension
@@ -195,11 +262,11 @@ namespace model
       -- preservation of f_assoc
     ( pres_f_assoc : Π ⦃Γ : base.ctx AA⦄ (A : base.fam AA Γ) (P : base.fam AA (ebase.ctxext AA Γ A)) (Q : base.fam AA (ebase.ctxext AA (ebase.ctxext AA Γ A) P)), ap (action_fam (ebase.f_assoc AA A P Q)) = ebase.f_assoc BB (action_fam A) ((pres_ctxext Γ A) ▸ P) (Q) )
 
-  definition slice_base (AA : ebase) (Γ : base.ctx AA) : ebase :=
+  definition slice_ebase.{v} (AA : ebase.{v}) (Γ : base.ctx AA) : ebase.{v} :=
   begin
     fapply ebase.mk,
       -- contexts
-    exact base.fam AA Γ,
+    exact ebase.fam AA Γ,
       -- dependent structures
     intro A,
     exact ebase.fam AA (ebase.ctxext AA Γ A),
