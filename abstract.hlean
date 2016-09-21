@@ -17,7 +17,7 @@ universe variable u
     -- developed by the author. B-systems form a subcategory of E-systems, for which the inclusion 
     -- functor is full and faithful.
 
-namespace model
+namespace model -- open the name space model
     
     -- The base structure of a model consists of 
     -- - a type of contexts, 
@@ -27,7 +27,6 @@ namespace model
     --
     --     base.tm ---->> base.fam ---->> base.ctx.
 
-
   structure base : Type :=
       -- contexts
     ( ctx : Type.{u})
@@ -36,17 +35,19 @@ namespace model
       -- terms
     ( tm  : Π ⦃Γ : ctx⦄, fam Γ → Type.{u})
 
+  namespace base -- Open the namespace model.base
+
   -- One operation we can always define on bases, is that if AA is an indexed base, then we can take
   -- the total space at the level of contexts to obtain a new base.
 
-  definition total_base (I : Type.{u}) (AA : I → base.{u}) : base.{u} :=
-    base.mk
+  definition total {I : Type.{u}} (AA : I → base) : base :=
+    mk
         -- contexts
-      ( Σ (i : I), base.ctx (AA i))
+      ( Σ (i : I), @base.ctx (AA i))
         -- families
-      ( sigma.rec (λ i, base.fam (AA i)))
+      ( sigma.rec (λ i, @base.fam (AA i)))
         -- terms
-      ( sigma.rec (λ i, base.tm (AA i)))
+      ( sigma.rec (λ i, @base.tm (AA i)))
 
     -- A homomorphism of bases, is simply a three-fold map sending
     -- - the contexts to the contexts,
@@ -64,52 +65,209 @@ namespace model
     --      V                  V
     --    base.ctx AA -----> base.ctx BB  
 
-  namespace base
-    -- We add the notion of homomorphism of bases to the namespace base
+    -- We add the notion of homomorphism of bases to the namespace model.base
 
-  structure hom (AA BB : base) : Type :=
-      -- action on contexts
-    ( action_ctx : base.ctx AA → base.ctx BB)
-      -- action on dependent structures
-    ( action_fam : Π ⦃Γ : base.ctx AA⦄, base.fam AA Γ → base.fam BB (action_ctx Γ))
-      -- action on terms
-    ( action_tm  : Π ⦃Γ : base.ctx AA⦄ ⦃A : base.fam AA Γ⦄, base.tm AA A → base.tm BB (action_fam A))
+    structure hom (AA BB : base) : Type :=
+        -- action on contexts
+      ( action_ctx : base.ctx AA → base.ctx BB)
+        -- action on dependent structures
+      ( action_fam : Π ⦃Γ : base.ctx AA⦄, base.fam AA Γ → base.fam BB (action_ctx Γ))
+        -- action on terms
+      ( action_tm  : Π ⦃Γ : base.ctx AA⦄ ⦃A : base.fam AA Γ⦄, base.tm AA A → base.tm BB (action_fam A))
+
+    -- infixr ` →base ` : 50 := base.hom
+
+    namespace hom -- Open the namespace model.base.hom
+
+      -- We add the identity homomorphism and composition to the namespace base.hom of base homomorphisms.
+
+      definition id (AA : base) : hom AA AA :=
+        mk
+            -- action on contexts
+          ( id)
+            -- action on families
+          ( λ Γ, id)
+            -- action on terms
+          ( λ Γ A, id)
+
+      definition compose {AA BB CC : base} (f : hom AA BB) (g : hom BB CC) : hom AA CC :=
+        mk
+            -- action on contexts
+          ( λ Γ, action_ctx g (action_ctx f Γ))
+            -- action on families
+          ( λ Γ A, action_fam g (action_fam f A))
+            -- action on terms
+          ( λ Γ A x, action_tm g (action_tm f x))
+
+      definition total {I J : Type} (k : I → J) {AA : I → base} {BB : J → base} 
+        ( f : Π (i : I), hom (AA i) (BB (k i))) : hom (total AA) (total BB) :=
+        mk
+            -- action on contexts
+          ( sigma.rec (λ i Γ, sigma.mk (k i) (action_ctx (f i) Γ)))
+            -- action on families
+          ( sigma.rec (λ i Γ, @action_fam _ _ (f i) Γ))
+            -- action on terms
+          ( sigma.rec (λ i Γ, @action_tm _ _ (f i) Γ))
+
+    end hom
+
+    -- Before we extend the base structure to a base structure with context extension, we define the type of the operation of context extension.
+    definition has_ctxext (AA : base) : Type := 
+      Π (Γ : ctx AA), (fam AA Γ) → (ctx AA)
+
   end base
 
-    -- We start by adding context extension and an empty context into the mix.
+    -- We start adding ingredients to the base structure, by adding context extension into the mix.
 
   structure e0base extends base :=
       -- context extension
-    ( ctxext : Π (Γ : ctx), fam Γ → ctx)
-      -- empty contex
-    ( empctx : ctx)
-      -- context extension by the empty context is an equivalence
-    ( is_equiv_ctxext_empctx : is_equiv (ctxext empctx))
+    ( ctxext : base.has_ctxext (base.mk ctx fam tm))
 
-  namespace e0base
-    -- A homomorphism of bases with context extension is simply a homomorphism of bases which preserves context extension. 
+  namespace e0base -- Open the namespace model.e0base
 
-  structure hom (AA BB : e0base) extends base.hom AA BB :=
-    ( pres_ctxext : Π (Γ : ctx AA) (A : fam AA Γ),
-        action_ctx (ctxext AA Γ A) = ctxext BB (action_ctx Γ) (action_fam A))
+      -- If we are given a base, we can make it a base with context extension by adding context extension.
+    definition from_base (AA : base) : base.has_ctxext AA → e0base :=
+      e0base.mk
+        ( base.ctx AA)
+        ( base.fam AA)
+        ( base.tm  AA)
+
+    -- A homomorphism of bases with context extension is simply a homomorphism of bases which preserves context extension. We first define the type that witnesses whether context extension is preserved, and then we will define homomorphisms of bases with context extension.
+
+    definition ty_pres_ctxext {AA BB : e0base} (f : base.hom AA BB) : Type :=
+      Π (Γ : ctx AA) (A : fam AA Γ),
+          base.hom.action_ctx f (ctxext AA Γ A) = ctxext BB (base.hom.action_ctx f Γ) (base.hom.action_fam f A)
+
+    structure hom (AA BB : e0base) extends base.hom AA BB :=
+      ( pres_ctxext : ty_pres_ctxext (base.hom.mk action_ctx action_fam action_tm))
+
+    definition hom.from_basehom {AA BB : e0base} (f : base.hom AA BB) : ty_pres_ctxext f → hom AA BB :=
+      hom.mk
+          -- action on contexts
+        ( base.hom.action_ctx f)
+          -- action on families
+        ( base.hom.action_fam f)
+          -- action on terms
+        ( base.hom.action_tm  f)
+
+    -- notation AA `→e0base` BB := hom AA BB
 
     -- Given a context Γ in a base with context extension, we can find the base for a new model.
 
-  definition slice {AA : e0base} (Γ : e0base.ctx AA) : base :=
-    base.mk 
-      ( fam AA Γ) 
-      ( λ A, fam AA (ctxext AA Γ A)) 
-      ( λ A P, tm AA P)
+    definition slice {AA : e0base} (Γ : e0base.ctx AA) : base :=
+      base.mk 
+          -- contexts
+        ( fam AA Γ) 
+          -- families
+        ( λ A, fam AA (ctxext AA Γ A)) 
+          -- terms
+        ( λ A P, tm AA P)
 
-    -- Furthermore, we can extend context extension to a base homomorphism.
+    definition slice.total (AA : e0base) : e0base :=
+      e0base.from_base (base.total (@slice AA))
+          -- context extension
+        (sigma.rec (λ Γ A P, @sigma.mk (ctx AA) (fam AA) (ctxext AA Γ A) P))
 
-  definition ctxext_hom (AA : e0base) : base.hom (total_base _ (@e0base.slice AA)) AA :=
-    base.hom.mk
-      (sigma.rec (ctxext AA))
-      (sigma.rec (λ Γ A, id))
-      (sigma.rec (λ Γ A P, id)) 
+    namespace hom -- Open the namespace model.e0base.hom
+
+      -- Given a base homomorphism between bases with context extension, we define a slice operation on homomorphisms.
+  
+      definition slice {AA BB : e0base} (f : hom AA BB) (Γ : ctx AA) :
+        base.hom (slice Γ) (slice (action_ctx f Γ)) :=
+        base.hom.mk
+            -- action on contexts
+          (λ A, action_fam f A)
+            -- action on families
+          (λ A P, transport (fam BB) (pres_ctxext f Γ A) (action_fam f P))
+            -- action on terms
+          (λ A P x, transportD (tm BB) (pres_ctxext f Γ A) _ (action_tm f x))
+
+     -- Furthermore, we can extend context extension to a base homomorphism.
+
+    definition ctxext (AA : e0base) : base.hom (@base.total (ctx AA) (@e0base.slice AA)) AA :=
+      base.hom.mk
+          -- action on contexts
+        (sigma.rec (ctxext AA))
+          -- action on families
+        (sigma.rec (λ Γ A, id))
+          -- action on terms
+        (sigma.rec (λ Γ A P, id))
+
+    end hom 
 
   end e0base
+
+  definition has_famext (AA : e0base) : Type :=
+    Π {Γ : e0base.ctx AA} (A : e0base.fam AA Γ), (e0base.fam AA (e0base.ctxext AA Γ A)) → (e0base.fam AA Γ)
+
+  definition has_empstr (AA : e0base) : Type :=
+    Π (Γ : e0base.ctx AA), e0base.fam AA Γ
+
+  structure pre_ebase extends e0base :=
+      -- family extension
+    ( famext : has_famext (e0base.mk ctx fam tm ctxext))
+      -- empty structure
+    ( empstr : has_empstr (e0base.mk ctx fam tm ctxext))
+
+  definition pre_ebase.from_e0base (AA : e0base) : has_famext AA → has_empstr AA → pre_ebase :=
+    pre_ebase.mk
+        -- contexts
+      ( e0base.ctx AA)
+        -- families
+      ( e0base.fam AA)
+        -- terms
+      ( e0base.tm  AA)
+        -- context extension
+      ( e0base.ctxext AA)
+
+  namespace pre_ebase -- opens the namespace model.pre_ebase
+
+    definition e0slice (AA : pre_ebase) (Γ : pre_ebase.ctx AA) : e0base :=
+      e0base.from_base (@e0base.slice AA Γ) (@pre_ebase.famext AA Γ) 
+
+    definition ty_pres_famext {AA BB : pre_ebase} (f : e0base.hom AA BB) : Type :=
+      Π (Γ : ctx AA), 
+          -- Since family extension is context extension in the slice model, 
+          -- we give a specification in terms of context extension
+        @e0base.ty_pres_ctxext 
+            -- The domain e0base
+          (e0slice AA Γ)
+            -- The codomain e0base 
+          (e0slice BB (e0base.hom.action_ctx f Γ)) 
+            -- The base homomorphism between them
+          (e0base.hom.slice f Γ)
+
+    definition ty_pres_empstr {AA BB : pre_ebase} (f : e0base.hom AA BB) : Type :=
+      Π (Γ : ctx AA), e0base.hom.action_fam f (empstr AA Γ) = empstr BB (e0base.hom.action_ctx f Γ)
+
+    structure hom (AA BB : pre_ebase) extends e0base.hom AA BB :=
+        -- preserves family extension
+      ( pres_famext : ty_pres_famext (e0base.hom.mk action_ctx action_fam action_tm pres_ctxext))
+        -- preserves the empty structure
+      ( pres_empstr : ty_pres_empstr (e0base.hom.mk action_ctx action_fam action_tm pres_ctxext))
+
+    definition hom.from_e0basehom {AA BB : pre_ebase} (f : e0base.hom AA BB) : 
+      ty_pres_famext f → ty_pres_empstr f → hom AA BB :=
+      hom.mk
+          -- action on contexts
+        ( e0base.hom.action_ctx f)
+          -- action on families
+        ( e0base.hom.action_fam f)
+          -- action on terms
+        ( e0base.hom.action_tm  f)
+          -- preserves context extension
+        ( e0base.hom.pres_ctxext f)
+
+  end pre_ebase
+
+    -- We introduce the Π-constructor 
+  definition ty_pi0 (AA : e0base) : Type := Π {Γ : e0base.ctx AA} (A : e0base.fam AA Γ), base.hom (e0base.slice (e0base.ctxext AA Γ A)) (e0base.slice Γ) 
+
+  structure pi0base extends e0base :=
+    (pi : ty_pi0 (e0base.mk ctx fam tm ctxext))
+
+  definition pi0base.from_e0base (AA : e0base) : ty_pi0 AA → pi0base :=
+    pi0base.mk (e0base.ctx AA) (e0base.fam AA) (e0base.tm AA) (e0base.ctxext AA)
 
     -- We now extend the notion of base to the notion of extension base, by adding
     -- - context extension
@@ -124,9 +282,7 @@ namespace model
     -- requirement that these equations should be preserved, in the formalization of later aspects 
     -- of models of type theory.
 
-  structure ebase extends base :=
-      -- context extension
-    ( ctxext : Π (Γ : ctx), fam Γ → ctx)
+  structure ebase extends e0base :=
       -- family extension
     ( famext : Π ⦃Γ : ctx⦄ (A : fam Γ), fam (ctxext Γ A) → fam Γ)
       -- empty structure
@@ -152,7 +308,7 @@ namespace model
     ( f_unit_right : (λ Γ A, famext A (empstr (ctxext Γ A))) = (λ Γ A, A))
 
   open ebase
-    -- We open the name space ebase, so that we can freely use its ingredients.
+    -- We open the name space model.ebase, so that we can freely use its ingredients.
 
     -- A pre-homomorphism of ebases is a homomorphism which preserves the operations of context 
     -- extension, family extension and the empty structure. However, a pre-homomorphism of ebases is
@@ -160,11 +316,7 @@ namespace model
     -- requires a more elaborate formalization, in which it is useful to have the auxilary notion of
     -- pre-homomorphism of ebases available.
 
-  structure prehom_ebase (AA BB : ebase) extends hom_base AA BB :=
-      -- preservation of context extension
-    ( pres_ctxext : 
-        Π (Γ : ctx AA) (A : fam AA Γ), 
-          action_ctx (ctxext AA Γ A) = ctxext BB (action_ctx Γ) (action_fam A))
+  structure prehom_ebase (AA BB : ebase) extends e0base.hom AA BB :=
       -- preservation of family extension
     ( pres_famext : 
         Π ⦃Γ : ctx AA⦄ (A : fam AA Γ) (P : fam AA (ctxext AA Γ A)), 
@@ -238,8 +390,6 @@ namespace model
                           ⦄ ) 
     ) --there should be a better way to do this.
 
-  print hom_ebase
-
 /-    Π (Γ : base.ctx AA) (A : base.fam AA Γ) (P : base.fam AA (ebase.ctxext AA Γ A)), 
         @pathover 
             -- base type 
@@ -293,8 +443,4 @@ namespace model
   structure is_ebase (AA : base) (ee : is_pre_ebase AA) : Type :=
     ( is_hom_ctxext : Π (Γ : base.ctx AA), is_hom_pre_ebase (slice_ext AA ee Γ))
 
-  structure prewk extends ext :=
-    ( wkctx : Π ⦃Γ : ctx⦄ (A : fam Γ), fam Γ → fam (ctxext Γ A))
-    ( fam : Π ⦃Γ : trunk.ctx⦄ (A : fam Γ) (B : fam Γ), fam (ext.ctx Γ B) → fam (ext.ctx (ext.ctx Γ A) (ctx A B)))
-    ( tm  : Π ⦃Γ : trunc.ctx⦄ (A : fam Γ) (B : fam Γ) (Q : fam (ext.ctx Γ B)), 
 end model
