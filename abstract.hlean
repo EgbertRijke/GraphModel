@@ -38,7 +38,7 @@ namespace model -- open the name space model
   namespace base -- Open the namespace model.base
 
   -- One operation we can always define on bases, is that if AA is an indexed base, then we can take
-  -- the total space at the level of contexts to obtain a new base.
+  -- the total space at the level of contexts to obtain a new base ∫ AA.
 
   definition total {I : Type.{u}} (AA : I → base) : base :=
     mk
@@ -119,9 +119,11 @@ namespace model -- open the name space model
 
     -- We start adding ingredients to the base structure, by adding context extension into the mix.
 
-  structure e0base extends base :=
+  structure e0base extends AA : base :=
       -- context extension
-    ( ctxext : base.has_ctxext (base.mk ctx fam tm))
+    ( ctxext : base.has_ctxext AA)
+      -- when base is a class, the following should work
+    -- ( ctxext : base.has_ctxext)
 
   namespace e0base -- Open the namespace model.e0base
 
@@ -138,8 +140,8 @@ namespace model -- open the name space model
       Π (Γ : ctx AA) (A : fam AA Γ),
           base.hom.action_ctx f (ctxext AA Γ A) = ctxext BB (base.hom.action_ctx f Γ) (base.hom.action_fam f A)
 
-    structure hom (AA BB : e0base) extends base.hom AA BB :=
-      ( pres_ctxext : ty_pres_ctxext (base.hom.mk action_ctx action_fam action_tm))
+    structure hom (AA BB : e0base) extends f : base.hom AA BB :=
+      ( pres_ctxext : ty_pres_ctxext f)
 
     definition hom.from_basehom {AA BB : e0base} (f : base.hom AA BB) : ty_pres_ctxext f → hom AA BB :=
       hom.mk
@@ -203,11 +205,11 @@ namespace model -- open the name space model
   definition has_empstr (AA : e0base) : Type :=
     Π (Γ : e0base.ctx AA), e0base.fam AA Γ
 
-  structure pre_ebase extends e0base :=
+  structure pre_ebase extends AA : e0base :=
       -- family extension
-    ( famext : has_famext (e0base.mk ctx fam tm ctxext))
+    ( famext : has_famext AA)
       -- empty structure
-    ( empstr : has_empstr (e0base.mk ctx fam tm ctxext))
+    ( empstr : has_empstr AA)
 
   definition pre_ebase.from_e0base (AA : e0base) : has_famext AA → has_empstr AA → pre_ebase :=
     pre_ebase.mk
@@ -225,6 +227,25 @@ namespace model -- open the name space model
     definition e0slice (AA : pre_ebase) (Γ : pre_ebase.ctx AA) : e0base :=
       e0base.from_base (@e0base.slice AA Γ) (@pre_ebase.famext AA Γ) 
 
+    -- We will now formalize what it means to preserve family extension.
+    -- The idea behind this definition, is that f : AA → BB preserves
+    -- family extension precisely when we can define for each Γ : ctx AA
+    -- a base homomorphism
+    --
+    --   slice (f/Γ) : slice (AA/Γ) → slice (BB/(f Γ)),
+    --
+    -- such that the square of base homomorphisms
+    --
+    --                        ∫ (slice (f/Γ))
+    --      ∫ (slice (AA/Γ)) ----------------> ∫ (slice (BB/(f Γ)))
+    --              |                                  |
+    --  hom.famext  |                                  | hom.famext
+    --              V                                  V
+    --             AA/Γ -------------------------> BB/(f Γ)
+    --                               f/Γ
+    --
+    -- commutes. We also formalize this below.
+
     definition ty_pres_famext {AA BB : pre_ebase} (f : e0base.hom AA BB) : Type :=
       Π (Γ : ctx AA), 
           -- Since family extension is context extension in the slice model, 
@@ -240,11 +261,11 @@ namespace model -- open the name space model
     definition ty_pres_empstr {AA BB : pre_ebase} (f : e0base.hom AA BB) : Type :=
       Π (Γ : ctx AA), e0base.hom.action_fam f (empstr AA Γ) = empstr BB (e0base.hom.action_ctx f Γ)
 
-    structure hom (AA BB : pre_ebase) extends e0base.hom AA BB :=
+    structure hom (AA BB : pre_ebase) extends f : e0base.hom AA BB :=
         -- preserves family extension
-      ( pres_famext : ty_pres_famext (e0base.hom.mk action_ctx action_fam action_tm pres_ctxext))
+      ( pres_famext : ty_pres_famext f)
         -- preserves the empty structure
-      ( pres_empstr : ty_pres_empstr (e0base.hom.mk action_ctx action_fam action_tm pres_ctxext))
+      ( pres_empstr : ty_pres_empstr f)
 
     definition hom.from_e0basehom {AA BB : pre_ebase} (f : e0base.hom AA BB) : 
       ty_pres_famext f → ty_pres_empstr f → hom AA BB :=
@@ -258,13 +279,30 @@ namespace model -- open the name space model
           -- preserves context extension
         ( e0base.hom.pres_ctxext f)
 
+    definition slice_of_e0slice (AA : pre_ebase) (Γ : ctx AA) : (e0base.ctx (e0slice AA Γ)) → base :=
+      @e0base.slice (e0slice AA Γ)
+    
+    namespace hom -- open the namespace model.pre_ebase.hom
+     
+      -- We extend the definition of pre_ebase.e0slice to homomorphisms of e0bases,
+      -- so that the slice of a pre-ebase homomorphism gets the structure of an
+      -- e0base homomorphism.
+
+    definition e0slice {AA BB : pre_ebase} (f : hom AA BB) (Γ : ctx AA) : 
+      e0base.hom (pre_ebase.e0slice AA Γ) (pre_ebase.e0slice BB (action_ctx f Γ)) :=
+      e0base.hom.from_basehom 
+        ( e0base.hom.slice f Γ)
+        ( pres_famext f Γ)
+
+    end hom
+
   end pre_ebase
 
     -- We introduce the Π-constructor 
   definition ty_pi0 (AA : e0base) : Type := Π {Γ : e0base.ctx AA} (A : e0base.fam AA Γ), base.hom (e0base.slice (e0base.ctxext AA Γ A)) (e0base.slice Γ) 
 
-  structure pi0base extends e0base :=
-    (pi : ty_pi0 (e0base.mk ctx fam tm ctxext))
+  structure pi0base extends AA : e0base :=
+    (pi : ty_pi0 AA)
 
   definition pi0base.from_e0base (AA : e0base) : ty_pi0 AA → pi0base :=
     pi0base.mk (e0base.ctx AA) (e0base.fam AA) (e0base.tm AA) (e0base.ctxext AA)
