@@ -298,14 +298,7 @@ namespace model -- open the name space model
 
   end pre_ebase
 
-    -- We introduce the Π-constructor 
-  definition ty_pi0 (AA : e0base) : Type := Π {Γ : e0base.ctx AA} (A : e0base.fam AA Γ), base.hom (e0base.slice (e0base.ctxext AA Γ A)) (e0base.slice Γ) 
-
-  structure pi0base extends AA : e0base :=
-    (pi : ty_pi0 AA)
-
-  definition pi0base.from_e0base (AA : e0base) : ty_pi0 AA → pi0base :=
-    pi0base.mk (e0base.ctx AA) (e0base.fam AA) (e0base.tm AA) (e0base.ctxext AA)
+/--
 
     -- We now extend the notion of base to the notion of extension base, by adding
     -- - context extension
@@ -480,5 +473,15 @@ namespace model -- open the name space model
 
   structure is_ebase (AA : base) (ee : is_pre_ebase AA) : Type :=
     ( is_hom_ctxext : Π (Γ : base.ctx AA), is_hom_pre_ebase (slice_ext AA ee Γ))
+
+   -- We introduce the Π-constructor 
+  definition ty_pi0 (AA : e0base) : Type := Π {Γ : e0base.ctx AA} (A : e0base.fam AA Γ), base.hom (e0base.slice (e0base.ctxext AA Γ A)) (e0base.slice Γ) 
+
+  structure pi0base extends AA : e0base :=
+    (pi : ty_pi0 AA)
+
+  definition pi0base.from_e0base (AA : e0base) : ty_pi0 AA → pi0base :=
+    pi0base.mk (e0base.ctx AA) (e0base.fam AA) (e0base.tm AA) (e0base.ctxext AA)
+--/
 
 end model
